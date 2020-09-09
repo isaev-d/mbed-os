@@ -38,6 +38,8 @@
 
 #include "source/pal/PalGap.h"
 #include "source/pal/PalConnectionMonitor.h"
+#include "source/pal/PalEventQueue.h"
+#include "source/generic/PrivateAddressController.h"
 
 #include "ble/Gap.h"
 
@@ -57,7 +59,8 @@ class BLEInstanceBase;
 
 class Gap :
     public ble::PalConnectionMonitor,
-    public PalGapEventHandler {
+    public PalGapEventHandler,
+    public PrivateAddressController::EventHandler {
     friend PalConnectionMonitor;
     friend PalGapEventHandler;
     friend PalGap;
@@ -358,7 +361,8 @@ private:
         ble::PalEventQueue &event_queue,
         ble::PalGap &pal_gap,
         ble::PalGenericAccessService &generic_access_service,
-        ble::PalSecurityManager &pal_sm
+        ble::PalSecurityManager &pal_sm,
+        ble::PrivateAddressController &pal_addr_reg
     );
 
     ~Gap();
@@ -401,15 +405,7 @@ private:
 
     bool initialize_whitelist() const;
 
-    ble_error_t update_address_resolution_setting();
-
-    void set_random_address_rotation(bool enable);
-
-    void update_random_address();
-
-    bool getUnresolvableRandomAddress(ble::address_t &address);
-
-    void on_address_rotation_timeout();
+    ble_error_t update_ll_address_resolution_setting();
 
     ble_error_t setExtendedAdvertisingParameters(
         advertising_handle_t handle,
@@ -418,7 +414,7 @@ private:
 
     bool is_extended_advertising_available();
 
-    void prepare_legacy_advertising_set();
+    ble_error_t prepare_legacy_advertising_set(const AdvertisingParameters& parameters);
 
     /* implements PalGap::EventHandler */
 private:
@@ -494,6 +490,12 @@ private:
 
     void on_periodic_advertising_sync_loss(sync_handle_t sync_handle) override;
 
+    void on_legacy_advertising_started() override;
+
+    void on_legacy_advertising_stopped() override;
+
+    void on_advertising_set_started(const mbed::Span<const uint8_t>& handles) override;
+
     void on_advertising_set_terminated(
         hci_error_code_t status,
         advertising_handle_t advertising_handle,
@@ -527,6 +529,31 @@ private:
 
     void process_legacy_scan_timeout();
 
+    /* Implement PrivateAddressController::EventHandler */
+private:
+    void on_resolvable_private_addresses_generated(const address_t &address) final;
+
+    void on_non_resolvable_private_addresses_generated(const address_t &address) final;
+
+    void on_private_address_generated(bool connectable);
+
+    void on_address_resolution_completed(
+        const address_t &peer_resolvable_address,
+        bool resolved,
+        target_peer_address_type_t identity_address_type,
+        const address_t &identity_address
+    ) final;
+
+private:
+    bool is_advertising() const;
+
+    bool is_radio_active() const;
+
+    void update_advertising_set_connectable_attribute(
+        advertising_handle_t handle,
+        const AdvertisingParameters& parameters
+    );
+
 private:
     /**
      * Callchain containing all registered callback handlers for shutdown
@@ -543,8 +570,8 @@ private:
     PalGap &_pal_gap;
     PalGenericAccessService &_gap_service;
     PalSecurityManager &_pal_sm;
+    PrivateAddressController &_address_registry;
     ble::own_address_type_t _address_type;
-    ble::address_t _address;
     initiator_policy_t _initiator_policy_mode;
     scanning_filter_policy_t _scanning_filter_policy;
     advertising_filter_policy_t _advertising_filter_policy;
@@ -553,13 +580,13 @@ private:
     bool _privacy_enabled;
     peripheral_privacy_configuration_t _peripheral_privacy_configuration;
     central_privacy_configuration_t _central_privacy_configuration;
-    ble::address_t _random_static_identity_address;
-    bool _random_address_rotating;
 
     bool _scan_enabled;
     mbed::LowPowerTimeout _advertising_timeout;
     mbed::LowPowerTimeout _scan_timeout;
     mbed::LowPowerTicker _address_rotation_ticker;
+
+    bool _initiating = false;
 
     template<size_t bit_size>
     struct BitArray {
@@ -612,6 +639,10 @@ private:
     BitArray<BLE_GAP_MAX_ADVERTISING_SETS> _active_periodic_sets;
     BitArray<BLE_GAP_MAX_ADVERTISING_SETS> _connectable_payload_size_exceeded;
     BitArray<BLE_GAP_MAX_ADVERTISING_SETS> _set_is_connectable;
+    BitArray<BLE_GAP_MAX_ADVERTISING_SETS> _pending_sets;
+    BitArray<BLE_GAP_MAX_ADVERTISING_SETS> _address_refresh_sets;
+    BitArray<BLE_GAP_MAX_ADVERTISING_SETS> _interruptible_sets;
+
 
     bool _user_manage_connection_parameter_requests : 1;
 };

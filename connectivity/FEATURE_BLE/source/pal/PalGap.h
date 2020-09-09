@@ -198,6 +198,21 @@ public:
      */
     virtual void on_scan_timeout( ) = 0;
 
+    /**
+     * Called when legacy advertising has been effectively started.
+     */
+    virtual void on_legacy_advertising_started() = 0;
+
+    /**
+     * Called when legacy advertising has been stopped.
+     */
+    virtual void on_legacy_advertising_stopped() = 0;
+
+    /**
+     * Called when extended advertising has been started.
+     */
+    virtual void on_advertising_set_started(const mbed::Span<const uint8_t>& handles) = 0;
+
     /** Called when advertising set stops advertising.
      *
      * @param status SUCCESS if connection has been established.
@@ -1547,27 +1562,6 @@ public:
     virtual ble_error_t disconnect(
         connection_handle_t connection,
         local_disconnection_reason_t disconnection_reason
-    ) = 0;
-
-    /** Check if privacy feature is supported by implementation
-     *
-     * @return true if privacy is supported, false otherwise.
-     *
-     * @note: See Bluetooth 5 Vol 3 Part C: 10.7 Privacy feature.
-     */
-    virtual bool is_privacy_supported() = 0;
-
-    /** Enable or disable private addresses resolution
-     *
-     * @param enable whether to enable private addresses resolution
-     *
-     * @return BLE_ERROR_NONE if the request has been successfully sent or the
-     * appropriate error otherwise.
-     *
-     * @note: See Bluetooth 5 Vol 2 PartE: 7.8.44 LE Set Address Resolution Enable command.
-     */
-    virtual ble_error_t set_address_resolution(
-        bool enable
     ) = 0;
 
     /**

@@ -462,23 +462,6 @@ ble_error_t PalGap::disconnect(
     return BLE_ERROR_NONE;
 }
 
-
-bool PalGap::is_privacy_supported()
-{
-    // We only support controller-based privacy, so return whether the controller supports it
-    return HciLlPrivacySupported();
-}
-
-
-ble_error_t PalGap::set_address_resolution(
-    bool enable
-)
-{
-    DmPrivSetAddrResEnable(enable);
-    return BLE_ERROR_NONE;
-}
-
-
 ble_error_t PalGap::read_phy(connection_handle_t connection)
 {
     if (is_feature_supported(controller_supported_features_t::LE_2M_PHY)
@@ -488,7 +471,6 @@ ble_error_t PalGap::read_phy(connection_handle_t connection)
     }
     return BLE_ERROR_NOT_IMPLEMENTED;
 }
-
 
 ble_error_t PalGap::set_preferred_phys(
     const phy_set_t &tx_phys,
@@ -639,6 +621,20 @@ void PalGap::gap_handler(const wsfMsgHdr_t *msg)
             break;
 #endif // BLE_FEATURE_PERIODIC_ADVERTISING
 
+        case DM_ADV_START_IND:
+            if (!handler) {
+                break;
+            }
+            handler->on_legacy_advertising_started();
+            break;
+
+        case DM_ADV_STOP_IND:
+            if (!handler) {
+                break;
+            }
+            handler->on_legacy_advertising_stopped();
+            break;
+
 #if BLE_FEATURE_EXTENDED_ADVERTISING && BLE_ROLE_BROADCASTER
         case DM_SCAN_REQ_RCVD_IND: {
             if (!handler) {
@@ -651,8 +647,16 @@ void PalGap::gap_handler(const wsfMsgHdr_t *msg)
                 connection_peer_address_type_t(evt->scanAddrType),
                 evt->scanAddr
             );
-        }
-            break;
+        }   break;
+
+        case DM_ADV_SET_START_IND: {
+            if (!handler) {
+                break;
+            }
+            const auto *evt = (const dmAdvSetStartEvt_t *) msg;
+            handler->on_advertising_set_started({evt->advHandle, evt->numSets});
+        }   break;
+
 
         case DM_ADV_SET_STOP_IND: {
             const auto *evt = (const hciLeAdvSetTermEvt_t *) msg;
@@ -676,8 +680,7 @@ void PalGap::gap_handler(const wsfMsgHdr_t *msg)
                 evt->handle,
                 evt->numComplEvts
             );
-        }
-            break;
+        }   break;
 #endif //  BLE_FEATURE_EXTENDED_ADVERTISING && BLE_ROLE_BROADCASTER
 
 #if BLE_FEATURE_EXTENDED_ADVERTISING && BLE_ROLE_OBSERVER

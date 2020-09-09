@@ -201,7 +201,8 @@ ble::impl::Gap &BLEInstanceBase::getGapImpl()
         _event_queue,
         ble::impl::PalGap::get_gap(),
         cordio_gap_service,
-        ble::impl::PalSecurityManager::get_security_manager()
+        ble::impl::PalSecurityManager::get_security_manager(),
+        getPrivateAddressRegistry()
     );
     return gap;
 }
@@ -285,7 +286,8 @@ ble::impl::SecurityManager &BLEInstanceBase::getSecurityManagerImpl()
     static ble::impl::SecurityManager m_instance(
         ble::impl::PalSecurityManager::get_security_manager(),
         getGapImpl(),
-        signing_event_monitor
+        signing_event_monitor,
+        getPrivateAddressRegistry()
     );
 
     return m_instance;
@@ -302,6 +304,18 @@ const ble::SecurityManager &BLEInstanceBase::getSecurityManager() const
     const BLEInstanceBase &self = const_cast<BLEInstanceBase &>(*this);
     return const_cast<const ble::SecurityManager &>(self.getSecurityManager());
 }
+
+#if BLE_FEATURE_PRIVACY
+ble::PrivateAddressController &BLEInstanceBase::getPrivateAddressRegistry()
+{
+    static ble::PrivateAddressController registry(
+        impl::PalPrivateAddressController::instance(),
+        _event_queue,
+        ble::resolvable_address_timeout_t{}
+    );
+    return registry;
+}
+#endif
 
 #endif // BLE_FEATURE_SECURITY
 
@@ -337,6 +351,12 @@ void BLEInstanceBase::stack_handler(wsfEventMask_t event, wsfMsgHdr_t *msg)
     if (ble::impl::PalSecurityManager::get_security_manager().sm_handler(msg)) {
         return;
     }
+
+#if BLE_FEATURE_PRIVACY
+    if (impl::PalPrivateAddressController::instance().cordio_handler(msg)) {
+        return;
+    }
+#endif
 #endif // BLE_FEATURE_SECURITY
 
     switch (msg->event) {
@@ -365,6 +385,7 @@ void BLEInstanceBase::stack_handler(wsfEventMask_t event, wsfMsgHdr_t *msg)
 #if BLE_FEATURE_GATT_SERVER
             deviceInstance().getGattServerImpl().initialize();
 #endif
+
             deviceInstance().initialization_status = INITIALIZED;
             _init_callback.call(&context);
         }   break;

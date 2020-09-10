@@ -683,16 +683,37 @@ void PalGap::gap_handler(const wsfMsgHdr_t *msg)
         }   break;
 #endif //  BLE_FEATURE_EXTENDED_ADVERTISING && BLE_ROLE_BROADCASTER
 
-#if BLE_FEATURE_EXTENDED_ADVERTISING && BLE_ROLE_OBSERVER
+#if BLE_ROLE_OBSERVER
+        case DM_SCAN_START_IND:
+            if (!handler) { break; }
+            handler->on_scan_started(msg->status == HCI_SUCCESS);
+            break;
+
+        case DM_SCAN_STOP_IND:
+            if (!handler) { break; }
+            handler->on_scan_stopped(msg->status == HCI_SUCCESS);
+            break;
+
+#if BLE_FEATURE_EXTENDED_ADVERTISING
+        case DM_EXT_SCAN_START_IND:
+            if (!handler) { break; }
+            handler->on_scan_started(msg->status == HCI_SUCCESS);
+            break;
+
         case DM_EXT_SCAN_STOP_IND: {
             if (!handler) {
+                get_gap().ext_scan_stopping = false;
                 break;
             }
 
-            //const hciLeScanTimeoutEvt_t *evt = (const hciLeScanTimeoutEvt_t *) msg;
-            handler->on_scan_timeout();
-        }
-            break;
+            if (get_gap().ext_scan_stopping) {
+                get_gap().ext_scan_stopping = false;
+                handler->on_scan_stopped(msg->status == HCI_SUCCESS);
+            } else {
+                handler->on_scan_timeout();
+            }
+
+        }   break;
 
         case DM_EXT_SCAN_REPORT_IND: {
             if (!handler) {
@@ -718,9 +739,9 @@ void PalGap::gap_handler(const wsfMsgHdr_t *msg)
                 evt->len,
                 evt->pData
             );
-        }
-            break;
-#endif // BLE_FEATURE_EXTENDED_ADVERTISING && BLE_ROLE_OBSERVER
+        }   break;
+#endif // BLE_FEATURE_EXTENDED_ADVERTISING
+#endif // BLE_ROLE_OBSERVER
 
 #if BLE_ROLE_CENTRAL || BLE_ROLE_PERIPHERAL
         case DM_REM_CONN_PARAM_REQ_IND: {
@@ -1243,6 +1264,7 @@ ble_error_t PalGap::extended_scan_enable(
     if (enable) {
         uint32_t duration_ms = duration * 10;
 
+
         DmScanStart(
             scanning_phys.value(),
             DM_DISC_MODE_NONE,
@@ -1253,6 +1275,7 @@ ble_error_t PalGap::extended_scan_enable(
         );
     } else {
         DmScanStop();
+        ext_scan_stopping = true;
     }
 
     return BLE_ERROR_NONE;

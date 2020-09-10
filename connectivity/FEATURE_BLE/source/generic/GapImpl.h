@@ -525,6 +525,10 @@ private:
         uint16_t supervision_timeout
     ) override;
 
+    void on_scan_started(bool success) override;
+
+    void on_scan_stopped(bool success) override;
+
     void on_scan_timeout() override;
 
     void process_legacy_scan_timeout();
@@ -554,6 +558,12 @@ private:
         const AdvertisingParameters& parameters
     );
 
+    enum class controller_operation_t {
+        scanning, advertising, initiating
+    };
+
+    const address_t *get_random_address(controller_operation_t operation, size_t advertising_set = 0);
+
 private:
     /**
      * Callchain containing all registered callback handlers for shutdown
@@ -580,8 +590,13 @@ private:
     bool _privacy_enabled;
     peripheral_privacy_configuration_t _peripheral_privacy_configuration;
     central_privacy_configuration_t _central_privacy_configuration;
+    ble::address_t _random_static_identity_address;
 
-    bool _scan_enabled;
+
+    bool _scan_enabled = false;
+    bool _scan_pending = false;
+    bool _scan_interruptible = false;
+    bool _scan_address_refresh = false;
     mbed::LowPowerTimeout _advertising_timeout;
     mbed::LowPowerTimeout _scan_timeout;
     mbed::LowPowerTicker _address_rotation_ticker;

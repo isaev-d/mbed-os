@@ -46,8 +46,18 @@ void analogin_pll_configuration(void)
 
     RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_ADC;
-    PeriphClkInitStruct.PLL2.PLL2M = 4;
-    PeriphClkInitStruct.PLL2.PLL2N = 240;
+#if ( ((CLOCK_SOURCE) & USE_PLL_HSE_EXTC) & HSE_VALUE==8000000 )
+    RCC_OscInitStruct.PLL2.PLL2M = 4;   // 2 MHz
+    RCC_OscInitStruct.PLL2.PLLN = 240; // 480 MHz
+#elif ( ((CLOCK_SOURCE) & USE_PLL_HSE_XTAL) & HSE_VALUE==25000000 )
+    RCC_OscInitStruct.PLL2.PLL2M = 5;   // 5 MHz
+    RCC_OscInitStruct.PLL2.PLL2N = 96; // 480 MHz
+#elif ((CLOCK_SOURCE) & USE_PLL_HSI)
+    RCC_OscInitStruct.PLL2.PLL2M = 32;   // 2 MHz
+    RCC_OscInitStruct.PLL2.PLLN = 240; // 480 MHz
+#else
+    #error ADC clock setup failed, check CLOCK_SOURCE and HSE_VALUE
+#endif
     PeriphClkInitStruct.PLL2.PLL2P = 2;
     PeriphClkInitStruct.PLL2.PLL2Q = 2;
     PeriphClkInitStruct.PLL2.PLL2R = 2;
